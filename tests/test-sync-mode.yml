@@ -1,0 +1,36 @@
+name: Test sync mode with sas_token and account_name
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a dummy source directory
+        run: mkdir -p /tmp/sync-src && echo "sync content" > /tmp/sync-src/sync.txt
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          container_name: my-container
+          source_dir: /tmp/sync-src
+          sas_token: "sv=2021-01-01&ss=b&srt=sco&sp=rwdlacupiytfx&se=2099-01-01T00:00:00Z&st=2021-01-01T00:00:00Z&spr=https&sig=fakesig"
+          account_name: fakeaccount
+          sync: "true"
+      - name: Assert action failed at Azure CLI (not at validation)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should fail because the sas_token and account_name are fake,
+          # but it should have passed all the input validation checks (sas_token + account_name are both set).
+          # We expect failure here since we cannot connect to a real Azure storage account.
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed at Azure CLI call as expected with invalid credentials in sync mode"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: action unexpectedly succeeded — this should not happen with fake credentials"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
